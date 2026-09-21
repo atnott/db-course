@@ -3,79 +3,116 @@ DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS equipment_types CASCADE;
 DROP TABLE IF EXISTS parameters CASCADE;
 DROP TABLE IF EXISTS packs CASCADE;
+DROP TABLE IF EXISTS pack_parameters CASCADE;
 
 CREATE TABLE ranks(
-id SERIAL PRIMARY KEY,
-code VARCHAR(50) NOT NULL UNIQUE,
+id INT PRIMARY KEY,
 title VARCHAR(150) NOT NULL
 );
 
-CREATE TABLE users(
-id SERIAL PRIMARY KEY,
-code VARCHAR(50) NOT NULL UNIQUE,
-full_name VARCHAR(150) NOT NULL,
-rank_id INT REFERENCES ranks(id) ON DELETE SET NULL
-);
+COMMENT ON TABLE ranks IS 'Таблица должностей';
+COMMENT ON COLUMN ranks.id IS 'Уникальный код должностей';
+COMMENT ON COLUMN ranks.title IS 'Наименование должности';
 
 CREATE TABLE equipment_types(
-id SERIAL PRIMARY KEY,
-code VARCHAR(50) NOT NULL UNIQUE,
+id INT PRIMARY KEY,
+name VARCHAR(150) NOT NULL
+);
+
+COMMENT ON TABLE equipment_types is 'Таблица типов оборудования';
+COMMENT ON COLUMN equipment_types.id is 'Уникальный код типа оборудования';
+COMMENT ON COLUMN equipment_types.name is 'Наименование типа оборудования';
+
+CREATE TABLE parameters(
+id INT PRIMARY KEY,
 name VARCHAR(150) NOT NULL UNIQUE
 );
 
-CREATE TABLE parameters(
-id SERIAL PRIMARY KEY,
-code VARCHAR(50) NOT NULL UNIQUE,
-name VARCHAR(150) NOT NULL UNIQUE,
-unit VARCHAR(50),
-equipment_type_id INT REFERENCES equipment_types(id) ON DELETE SET NULL
+COMMENT ON TABLE parameters is 'Таблица параметров';
+COMMENT ON COLUMN parameters.id is 'Уникальный код параметра';
+COMMENT ON COLUMN parameters.name is 'Наименование параметра';
+
+CREATE TABLE users(
+id INT PRIMARY KEY,
+name VARCHAR(150) NOT NULL,
+rank_id INT REFERENCES ranks(id),
+equipment_type_id INT REFERENCES equipment_types(id)
 );
+
+COMMENT ON TABLE users is 'Таблица пользователей';
+COMMENT ON COLUMN users.id is 'Уникальный код пользователя';
+COMMENT ON COLUMN users.name is 'Имя пользователя';
+COMMENT ON COLUMN users.rank_id is 'Код должности';
+COMMENT ON COLUMN users.equipment_type_id is 'Код оборудования';
 
 CREATE TABLE packs(
-id SERIAL PRIMARY KEY,
-code VARCHAR(50) NOT NULL UNIQUE,
-created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-user_id INT REFERENCES users(id) ON DELETE CASCADE,
-equipment_type_id INT REFERENCES equipment_types(id) ON DELETE CASCADE
+id INT PRIMARY KEY,
+name VARCHAR(150) NOT NULL,
+created_at DATE,
+user_id INT REFERENCES users(id)
 );
 
-INSERT INTO ranks (code, title) VALUES
-('POS-METEO', 'Оператор метеопоста'),
-('POS-ART', 'Вычислитель артиллерийского дивизиона');
+COMMENT ON TABLE packs is 'Журнал для записей';
+COMMENT ON COLUMN packs.id is 'Уникальный код пачки';
+COMMENT ON COLUMN packs.created_at is 'Дата измерения';
+COMMENT ON COLUMN packs.user_id is 'Ссылка на пользователя';
+COMMENT ON COLUMN packs.name is 'Название';
 
-INSERT INTO users (code, full_name, rank_id) VALUES
-('USR-01', 'Смирнов Алексей Игоревич', 1),
-('USR-02', 'Ковалев Дмитрий Сергеевич', 2);
+CREATE TABLE pack_parameters(
+id INT PRIMARY KEY,
+pack_id INT REFERENCES packs(id),
+parameter_id INT REFERENCES parameters(id),
+value VARCHAR(50) NOT NULL
+);
 
-INSERT INTO equipment_types (code, name) VALUES
-('EQ-DMK', 'Десантный метеокомплект'),
-('EQ-VR', 'Ветровое ружье');
+COMMENT ON TABLE pack_parameters is 'Значения параметров для журнала';
+COMMENT ON COLUMN pack_parameters.value is 'Значение замера';
+COMMENT ON COLUMN pack_parameters.id is 'Уникальный код записи';
+COMMENT ON COLUMN pack_parameters.pack_id is 'Ссылка на пачку';
+COMMENT ON COLUMN pack_parameters.parameter_id is 'Ссылка на параметр';
 
-INSERT INTO parameters (code, name, unit, equipment_type_id) VALUES
-('P-HEIGHT', 'Высота метеопоста', 'м', 1),
-('P-TEMP', 'Температура воздуха', '°C', 1),
-('P-PRESS', 'Давление атмосферы', 'мм рт. ст.', 1),
-('P-WDIR', 'Направление ветра', 'д.у.', 1),
-('P-WSPEED', 'Скорость ветра', 'м/с', 1),
-('P-DRIFT', 'Дальность сноса пуль', 'м', 2);
+INSERT INTO ranks (id, title) VALUES 
+(1, 'Оператор метеопоста'),
+(2, 'Вычислитель артиллерийского дивизиона');
 
-INSERT INTO packs (code, user_id, equipment_type_id) VALUES
-('METEO11-24093-01', 1, 1),
-('METEO11-24093-02', 2, 2);
+INSERT INTO equipment_types (id, name) VALUES 
+(1, 'Десантный метеокомплект (ДМК)'),
+(2, 'Ветровое ружье');
 
-SELECT
-	pk.code AS "Код бюллетеня",
-    pk.created_at AS "Дата/время замера",
-    u.full_name AS "Оператор",
-    r.title AS "Должность",
-    eq.name AS "Оборудование",
-    p.code AS "Код параметра",
-    p.name AS "Наименование параметра",
-    p.unit AS "Единица измерения"
-FROM packs pk
-JOIN users u ON pk.user_id = u.id
-LEFT JOIN ranks r ON u.rank_id = r.id
-JOIN equipment_types eq ON pk.equipment_type_id = eq.id
-LEFT JOIN parameters p ON p.equipment_type_id = eq.id
-ORDER BY pk.id, p.id;
+INSERT INTO users (id, name, rank_id, equipment_type_id) VALUES 
+(1, 'Смирнов Алексей Игоревич', 1, 1),
+(2, 'Ковалев Дмитрий Сергеевич', 2, 2);
 
+INSERT INTO packs (id, name, created_at, user_id) VALUES 
+(1, '24093', '2026-09-20', 1);
+
+INSERT INTO parameters (id, name) VALUES 
+(1, 'Высота метеопоста'),
+(2, 'Температура воздуха'),
+(3, 'Давление атмосферы'),
+(4, 'Направление ветра'),
+(5, 'Скорость ветра'),
+(6, 'Дальность сноса пуль');
+
+INSERT INTO pack_parameters (id, pack_id, parameter_id, value) VALUES 
+(1, 1, 1, '100'),
+(2, 1, 2, '15'),
+(3, 1, 3, '750'),
+(4, 1, 4, '00'),
+(5, 1, 5, '5'),
+(6, 1, 6, '0');
+
+SELECT 
+	u.name AS user_name,
+	p.name AS pack_name,
+	p.created_at AS pack_date,
+	r.title AS rank_title,
+	eq.name AS equipment_name,
+	param.name AS parameter_name,
+	pp.value AS parameter_value
+FROM users u 
+JOIN packs p ON u.id = p.user_id
+JOIN ranks r ON u.rank_id = r.id
+JOIN equipment_types eq ON u.equipment_type_id = eq.id
+JOIN pack_parameters pp ON p.id = pp.pack_id
+JOIN parameters param ON pp.parameter_id = param.id;
