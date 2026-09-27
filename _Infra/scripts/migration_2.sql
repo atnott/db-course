@@ -1,6 +1,6 @@
-drop table if exists base_units;
-drop table if exists units;
-drop table if exists parameter_types;
+drop table if exists base_units cascade;
+drop table if exists units cascade;
+drop table if exists parameter_types cascade;
 
 create table base_units(
 id int primary key,
