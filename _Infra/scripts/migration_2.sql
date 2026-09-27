@@ -55,7 +55,7 @@ add column unit_id int references units(id),
 add column parameter_type_id int references parameter_types(id);
 
 comment on column parameters.unit_id is 'Код единицы измерения';
-comment on column parameters.parameter_id is 'Код типа параметра';
+comment on column parameters.parameter_type_id is 'Код типа параметра';
 
 update parameters set unit_id=1, parameter_type_id=2 where id=1;
 update parameters set unit_id=2, parameter_type_id=1 where id=2;
@@ -63,3 +63,15 @@ update parameters set unit_id=3, parameter_type_id=1 where id=3;
 update parameters set unit_id=4, parameter_type_id=3 where id=4;
 update parameters set unit_id=5, parameter_type_id=1 where id=5;
 update parameters set unit_id=1, parameter_type_id=3 where id=6;
+
+SELECT
+    p.created_at AS pack_date,
+    p.name AS pack_number,
+    u.name AS user_name,
+    param.name || ', ' || un.name AS parameter_with_unit,
+    pp.value AS parameter_value
+FROM packs p
+JOIN users u ON p.user_id = u.id
+JOIN pack_parameters pp ON p.id = pp.pack_id
+JOIN parameters param ON pp.parameter_id = param.id
+JOIN units un ON param.unit_id = un.id;
