@@ -56,3 +56,10 @@ add column parameter_type_id int references parameter_types(id);
 
 comment on column parameters.unit_id is 'Код единицы измерения';
 comment on column parameters.parameter_id is 'Код типа параметра';
+
+update parameters set unit_id=1, parameter_type_id=2 where id=1;
+update parameters set unit_id=2, parameter_type_id=1 where id=2;
+update parameters set unit_id=3, parameter_type_id=1 where id=3;
+update parameters set unit_id=4, parameter_type_id=3 where id=4;
+update parameters set unit_id=5, parameter_type_id=1 where id=5;
+update parameters set unit_id=1, parameter_type_id=3 where id=6;
