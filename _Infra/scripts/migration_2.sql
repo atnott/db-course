@@ -49,3 +49,10 @@ insert into parameter_types(id, name) values
 (1, 'Метеорологический'),
 (2, 'Геодезический'),
 (3, 'Баллистический');
+
+alter table parameters
+add column unit_id int references units(id),
+add column parameter_type_id int references parameter_types(id);
+
+comment on column parameters.unit_id is 'Код единицы измерения';
+comment on column parameters.parameter_id is 'Код типа параметра';
