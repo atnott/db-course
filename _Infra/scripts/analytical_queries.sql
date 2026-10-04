@@ -14,3 +14,13 @@ select
 from packs p
 left join pack_parameters pp on p.id = pp.pack_id
 where pp.id is null
+
+SELECT
+    p.id AS pack_id,
+    p.name AS pack_name,
+    COUNT(pp.parameter_id) AS parameters_count
+FROM packs p
+LEFT JOIN pack_parameters pp ON p.id = pp.pack_id
+GROUP BY p.id, p.name
+HAVING COUNT(pp.parameter_id) <> 6
+ORDER BY p.id;
