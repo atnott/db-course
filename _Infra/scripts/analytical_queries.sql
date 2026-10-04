@@ -1,11 +1,13 @@
+-- 1. количество пачек по пользователям
 select
 	users.id as user_id,
 	users.name as user_name,
 	COUNT(packs.id) as total_packs
 from users
 left join packs on users.id = packs.user_id
-group by users.id
+group by users.id;
 
+-- 2. поиск пустых пачек
 select
 	p.id as pack_id,
 	p.name as pack_name,
@@ -13,8 +15,9 @@ select
 	p.user_id
 from packs p
 left join pack_parameters pp on p.id = pp.pack_id
-where pp.id is null
+where pp.id is null;
 
+-- 3. проверка полноты комплекта параметров
 select
     p.id as pack_id,
     p.name as pack_name,
@@ -25,6 +28,7 @@ group by p.id, p.name
 having count(pp.parameter_id) <> 6
 order by p.id;
 
+-- 4. проверка значений параметров на соответствие диапазонам тз
 select
     pp.id as record_id,
     p.id as pack_id,
@@ -54,6 +58,7 @@ where
     or (param.id = 5 and (pp.value::numeric < 0 or pp.value::numeric > 15))
     or (param.id = 6 and (pp.value::numeric < 0 or pp.value::numeric > 150));
 
+-- 5. проверка соответствия единиц измерения базовым величинам
 select
     pp.id as record_id,
     p.id as pack_id,
