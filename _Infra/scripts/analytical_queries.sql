@@ -1,21 +1,24 @@
--- 1. количество пачек по пользователям
+-- 1. количество измерений по пользователям
 select
 	users.id as user_id,
 	users.name as user_name,
-	COUNT(packs.id) as total_packs
+	count(pp.id) as total_parameters_count
 from users
 left join packs on users.id = packs.user_id
-group by users.id;
+left join pack_parameters pp on packs.id = pp.pack_id
+group by users.id, users.name;
 
 -- 2. поиск пустых пачек
 select
-	p.id as pack_id,
-	p.name as pack_name,
-	p.created_at,
-	p.user_id
+    p.id as pack_id,
+    p.name as pack_name,
+    p.created_at,
+    p.user_id,
+    count(pp.id) as parameters_count
 from packs p
 left join pack_parameters pp on p.id = pp.pack_id
-where pp.id is null;
+group by p.id, p.name, p.created_at, p.user_id
+having count(pp.id) = 0;
 
 -- 3. проверка полноты комплекта параметров
 select
