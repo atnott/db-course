@@ -1,0 +1,28 @@
+Ты sql-разработчик, ниже приведена структура моей базы данных и данные, которые в ней уже есть, схему я прикрепил
+
+INSERT INTO ranks (id, title) VALUES (1, 'Оператор метеопоста'), (2, 'Вычислитель артиллерийского дивизиона');
+INSERT INTO equipment_types (id, name) VALUES (1, 'Десантный метеокомплект (ДМК)'), (2, 'Ветровое ружье');
+INSERT INTO users (id, name, rank_id, equipment_type_id) VALUES (1, 'Смирнов Алексей Игоревич', 1, 1), (2, 'Ковалев Дмитрий Сергеевич', 2, 2);
+
+INSERT INTO base_units(id, name) VALUES (1, 'Длина'), (2, 'Температура'), (3, 'Давление'), (4, 'Угол'), (5, 'Скорость');
+INSERT INTO units(id, name, base_unit_id) VALUES (1, 'метр', 1), (2, 'градус Цельсия', 2), (3, 'мм рт. ст.', 3), (4, 'д.у.', 4), (5, 'м/с', 5);
+INSERT INTO parameter_types(id, name) VALUES (1, 'Метеорологический'), (2, 'Геодезический'), (3, 'Баллистический');
+
+INSERT INTO parameters (id, name, unit_id, parameter_type_id) VALUES
+(1, 'Высота метеопоста', 1, 2),
+(2, 'Температура воздуха', 2, 1),
+(3, 'Давление атмосферы', 3, 1),
+(4, 'Направление ветра', 4, 3),
+(5, 'Скорость ветра', 5, 1),
+(6, 'Дальность сноса пуль', 1, 3);
+
+INSERT INTO packs (id, name, created_at, user_id) VALUES (1, '24093', '2026-09-20', 1);
+INSERT INTO pack_parameters (id, pack_id, parameter_id, value) VALUES
+(1, 1, 1, '100'), (2, 1, 2, '15'), (3, 1, 3, '750'), (4, 1, 4, '00'), (5, 1, 5, '5'), (6, 1, 6, '0');
+
+сгенерируй DML-скрипт дополнительных тестовых данных  для таблиц packs и pack_parameters
+
+требования
+не генерируй новые записи в справочники (ranks, equipment_types, base_units, units, parameter_types, parameters, users)
+начни нумерацию id в packs с 2, а в pack_parameters с 7, явно указывай id в колонках
+используй только существующие user_id и parameter_id
