@@ -92,67 +92,72 @@ begin
 		    delta_tv numeric(4,2) not null
 		);
 		alter sequence temperature_corrections_id_seq owned by temperature_corrections.id;
+		
+	exception when others then
+		raise notice 'Ошибка в блоке структуры: %', sqlerrm;
+		raise;
 	end;
 
 	begin
-		insert into base_units(id, name) values
-		(1, 'Длина'), (2, 'Температура'), (3, 'Давление'), (4, 'Угол'), (5, 'Скорость');
+		insert into base_units(name) values
+		('Длина'), ('Температура'), ('Давление'), ('Угол'), ('Скорость');
 
-		insert into units(id, name, base_unit_id) values
-		(1, 'метр', 1), (2, 'градус Цельсия', 2), (3, 'мм рт. ст.', 3), (4, 'д.у.', 4), (5, 'м/с', 5);
+		insert into units(name, base_unit_id) values
+		('метр', 1), ('градус Цельсия', 2), ('мм рт. ст.', 3), ('д.у.', 4), ('м/с', 5);
 
-		insert into parameter_types(id, name) values
-		(1, 'Метеорологический'), (2, 'Геодезический'), (3, 'Баллистический');
+		insert into parameter_types(name) values
+		('Метеорологический'), ('Геодезический'), ('Баллистический');
 
-		insert into ranks (id, title) values 
-		(1, 'Оператор метеопоста'), (2, 'Вычислитель артиллерийского дивизиона');
+		insert into ranks (title) values 
+		('Оператор метеопоста'), ('Вычислитель артиллерийского дивизиона');
 
-		insert into equipment_types (id, name) values 
-		(1, 'Десантный метеокомплект (ДМК)'), (2, 'Ветровое ружье');
+		insert into equipment_types (name) values 
+		('Десантный метеокомплект (ДМК)'), ('Ветровое ружье');
 
-		insert into parameters (id, name, unit_id, parameter_type_id) values 
-		(1, 'Высота метеопоста', 1, 2),
-		(2, 'Температура воздуха', 2, 1),
-		(3, 'Давление атмосферы', 3, 1),
-		(4, 'Направление ветра', 4, 3),
-		(5, 'Скорость ветра', 5, 1),
-		(6, 'Дальность сноса пуль', 1, 3);
+		insert into parameters (name, unit_id, parameter_type_id) values 
+		('Высота метеопоста', 1, 2),
+		('Температура воздуха', 2, 1),
+		('Давление атмосферы', 3, 1),
+		('Направление ветра', 4, 3),
+		('Скорость ветра', 5, 1),
+		('Дальность сноса пуль', 1, 3);
 
-		insert into users (id, name, rank_id, equipment_type_id) values 
-		(1, 'Смирнов Алексей Игоревич', 1, 1),
-		(2, 'Ковалев Дмитрий Сергеевич', 2, 2);
+		insert into users (name, rank_id, equipment_type_id) values 
+		('Смирнов Алексей Игоревич', 1, 1),
+		('Ковалев Дмитрий Сергеевич', 2, 2);
 
-		insert into packs (id, name, created_at, user_id) values 
-		(1, '24093', '2026-09-20', 1),
-		(2, '24094', '2026-09-21', 2),
-		(3, '24095', '2026-09-22', 1),
-		(4, '24096', '2026-09-23', 2),
-		(5, '24097', '2026-09-24', 1),
-		(6, '24098', '2026-09-25', 2),
-		(7, '24099', '2026-09-26', 1),
-		(8, '24100', '2026-09-27', 1),
-		(9, '24101', '2026-09-28', 1),
-		(10, '24102', '2026-09-29', 1);
+		insert into packs (name, created_at, user_id) values 
+		('24093', '2026-09-20', 1),
+		('24094', '2026-09-21', 2),
+		('24095', '2026-09-22', 1),
+		('24096', '2026-09-23', 2),
+		('24097', '2026-09-24', 1),
+		('24098', '2026-09-25', 2),
+		('24099', '2026-09-26', 1),
+		('24100', '2026-09-27', 1),
+		('24101', '2026-09-28', 1), 
+		('24102', '2026-09-29', 1);
 
-		insert into pack_parameters (id, pack_id, parameter_id, value) values 
-		(1, 1, 1, '100'), (2, 1, 2, '15'), (3, 1, 3, '750'), (4, 1, 4, '00'), (5, 1, 5, '5'), (6, 1, 6, '0'),
-		(7, 2, 1, '120'), (8, 2, 2, '18'), (9, 2, 3, '745'), (10, 2, 4, '45'), (11, 2, 5, '7'), (12, 2, 6, '2'),
-		(13, 3, 1, '95'), (14, 3, 2, '-300'), (15, 3, 3, '755'), (16, 3, 4, '30'), (17, 3, 5, '4'), (18, 3, 6, '1'),
-		(19, 4, 1, '110'), (20, 4, 2, '16'), (21, 4, 3, '748'), (22, 4, 4, '60'), (23, 4, 5, '6'), (24, 4, 6, '3'),
-		(25, 5, 1, '105'), (26, 5, 2, '17'), (27, 5, 3, '752'),
-		(31, 6, 1, '115'), (32, 6, 2, '19'), (33, 6, 3, '742'), (34, 6, 4, '75'), (35, 6, 5, '8'), (36, 6, 6, '4'),
-		(37, 7, 1, '102'), (38, 7, 2, '16'), (39, 7, 3, '751'), (40, 7, 4, '20'), (41, 7, 5, '5'), (42, 7, 6, '1'),
-		(43, 8, 1, '118'), (44, 8, 2, '20'), (45, 8, 3, '740'), (46, 8, 4, '80'), (47, 8, 5, '9'), (48, 8, 6, '5'),
-		(49, 10, 1, '98'), (50, 10, 2, '15'), (51, 10, 3, '753'), (52, 10, 4, '25'), (53, 10, 5, '6'), (54, 10, 6, '2');
+		insert into pack_parameters (pack_id, parameter_id, value) values 
+		(1, 1, '100'), (1, 2, '15'), (1, 3, '750'), (1, 4, '00'), (1, 5, '5'), (1, 6, '0'),
+		(2, 1, '120'), (2, 2, '18'), (2, 3, '745'), (2, 4, '45'), (2, 5, '7'), (2, 6, '2'),
+		(3, 1, '95'), (3, 2, '-300'), (3, 3, '755'), (3, 4, '30'), (3, 5, '4'), (3, 6, '1'),
+		(4, 1, '110'), (4, 2, '16'), (4, 3, '748'), (4, 4, '60'), (4, 5, '6'), (4, 6, '3'),
+		(5, 1, '105'), (5, 2, '17'), (5, 3, '752'), (5, 4, '15'), (5, 5, '5'), (5, 6, '1'),
+		(6, 1, '115'), (6, 2, '19'), (6, 3, '742'), (6, 4, '75'), (6, 5, '8'), (6, 6, '4'),
+		(7, 1, '102'), (7, 2, '16'), (7, 3, '751'), (7, 4, '20'), (7, 5, '5'), (7, 6, '1'),
+		(8, 1, '118'), (8, 2, '20'), (8, 3, '740'), (8, 4, '80'), (8, 5, '9'), (8, 6, '5'),
+		(9, 1, '100'), (9, 2, '16'), (9, 3, '750'), (9, 4, '10'), (9, 5, '4'), (9, 6, '1'),
+		(10, 1, '98'), (10, 2, '15'), (10, 3, '753'), (10, 4, '25'), (10, 5, '6'), (10, 6, '2');
 
-		insert into temperature_corrections (id, temp_range_desc, delta_tv) values
-		(1, 'Ниже 0', 0.0),
-		(2, '0 - 5', 0.5),
-		(3, '10 - 15', 1.0),
-		(4, '20', 1.5),
-		(5, '25', 2.0),
-		(6, '30', 3.5),
-		(7, '40', 4.5);
+		insert into temperature_corrections (temp_range_desc, delta_tv) values
+		('Ниже 0', 0.0),
+		('0 - 5', 0.5),
+		('10 - 15', 1.0),
+		('20', 1.5),
+		('25', 2.0),
+		('30', 3.5),
+		('40', 4.5);
 
 		perform setval('base_units_id_seq', coalesce((select max(id) from base_units), 1));
 		perform setval('units_id_seq', coalesce((select max(id) from units), 1));
@@ -164,6 +169,10 @@ begin
 		perform setval('packs_id_seq', coalesce((select max(id) from packs), 1));
 		perform setval('pack_parameters_id_seq', coalesce((select max(id) from pack_parameters), 1));
 		perform setval('temperature_corrections_id_seq', coalesce((select max(id) from temperature_corrections), 1));
+
+	exception when others then
+		raise notice 'Ошибка в блоке данных: %', sqlerrm;
+		raise;
 	end;
 
 	begin
@@ -185,6 +194,9 @@ begin
 		alter table pack_parameters
 			add constraint fk_pack_params_packs foreign key (pack_id) references packs(id),
 			add constraint fk_pack_params_params foreign key (parameter_id) references parameters(id);
+	exception when others then
+		raise notice 'Ошибка в внешних ключей: %', sqlerrm;
+		raise;
 	end;
 	
 end $$;
