@@ -165,5 +165,26 @@ begin
 		perform setval('pack_parameters_id_seq', coalesce((select max(id) from pack_parameters), 1));
 		perform setval('temperature_corrections_id_seq', coalesce((select max(id) from temperature_corrections), 1));
 	end;
+
+	begin
+		alter table units
+			add constraint fk_units_base_units 
+			foreign key (base_unit_id) references base_units(id);
+
+		alter table parameters
+			add constraint fk_parameters_units foreign key (unit_id) references units(id),
+			add constraint fk_parameters_types foreign key (parameter_type_id) references parameter_types(id);
+
+		alter table users
+			add constraint fk_users_ranks foreign key (rank_id) references ranks(id),
+			add constraint fk_users_equipment foreign key (equipment_type_id) references equipment_types(id);
+
+		alter table packs
+			add constraint fk_packs_users foreign key (user_id) references users(id);
+
+		alter table pack_parameters
+			add constraint fk_pack_params_packs foreign key (pack_id) references packs(id),
+			add constraint fk_pack_params_params foreign key (parameter_id) references parameters(id);
+	end;
 	
 end $$;
