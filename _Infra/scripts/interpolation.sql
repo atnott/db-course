@@ -21,62 +21,73 @@ begin
 	end;
 
 	begin
-		create or replace function get_interpolation_bounds(temperature numeric)
+		create temporary table temp_numeric_corrections (
+			temperature numeric not null,
+			correction numeric not null
+		);
+
+		insert into temp_numeric_corrections (temperature, correction) values
+			(0, 0.0),
+			(5, 0.5),
+			(10, 1.0),
+			(15, 1.0),
+			(20, 1.5),
+			(25, 2.0),
+			(30, 3.5),
+			(40, 4.5);
+
+		comment on table temp_numeric_corrections is 'Опорные точки';
+		comment on column temp_numeric_corrections.temperature is 'Температура';
+		comment on column temp_numeric_corrections.correction is 'Поправка';
+
+	exception when others then
+		raise notice 'Ошибка в транзакции 2: %', sqlerrm;
+		raise;
+	end;
+
+	begin
+		create or replace function get_interpolation_bounds(p_temperature numeric)
 		returns interpolation_data
 		language plpgsql
 		as $func$
 		declare
 			result interpolation_data;
 		begin
-			case
-				when temperature < 0 then
-					result.x0 := -100;
-					result.y0 := 0;
-					result.x1 := 0;
-					result.y1 := 0;
-				when temperature >= 0 and temperature < 5 then
-					result.x0 := 0;
-					result.y0 := 0;
-					result.x1 := 5;
-					result.y1 := 0.5;
-				when temperature >= 5 and temperature < 10 then
-					result.x0 := 5;
-					result.y0 := 0.5;
-					result.x1 := 10;
-					result.y1 := 1;
-				when temperature >= 10 and temperature < 15 then
-					result.x0 := 10;
-					result.y0 := 1;
-					result.x1 := 15;
-					result.y1 := 1;
-				when temperature >= 15 and temperature < 20 then
-					result.x0 := 15;
-					result.y0 := 1;
-					result.x1 := 20;
-					result.y1 := 1.5;
-				when temperature >= 20 and temperature < 25 then
-					result.x0 := 20;
-					result.y0 := 1.5;
-					result.x1 := 25;
-					result.y1 := 2;
-				when temperature >= 25 and temperature < 30 then
-					result.x0 := 25;
-					result.y0 := 2;
-					result.x1 := 30;
-					result.y1 := 3.5;
-				when temperature >= 30 and temperature <= 40 then
-					result.x0 := 30;
-					result.y0 := 3.5;
-					result.x1 := 40;
-					result.y1 := 4.5;
-				else
-					result.x0 := 40;
-					result.y0 := 4.5;
-					result.x1 := 100;
-					result.y1 := 4.5;
-			 end case;
-			 return result;
+
+			if p_temperature < 0 then
+				result.x0 := -50;
+				result.y0 := 0;
+				result.x1 := 0;
+				result.y1 := 0;
+				return result;
+			end if;
+
+			select temperature, correction
+			into result.x0, result.y0
+			from temp_numeric_corrections
+			where temperature <= p_temperature
+			order by temperature desc
+			limit 1;
+
+			select temperature, correction
+			into result.x1, result.y1
+			from temp_numeric_corrections
+			where temperature >= p_temperature
+			order by temperature asc
+			limit 1;
+
+			if result.x1 is null then
+				result.x1 := 58;
+				result.y1 := result.y0;
+			end if;
+
+			return result;
+					
 		end;
 		$func$;
+        
+	exception when others then
+		raise notice 'Ошибка в транзакции 3: %', sqlerrm;
+		raise;
 	end;
 end $$
