@@ -21,6 +21,7 @@ begin
 	end;
 
 	begin
+		drop table if exists temp_numeric_corrections;
 		create temporary table temp_numeric_corrections (
 			temperature numeric not null,
 			correction numeric not null
@@ -77,7 +78,7 @@ begin
 			limit 1;
 
 			if result.x1 is null then
-				result.x1 := 58;
+				result.x1 := 50;
 				result.y1 := result.y0;
 			end if;
 
@@ -85,7 +86,23 @@ begin
 					
 		end;
 		$func$;
-        
+
+		create or replace function interpolate(x numeric, points interpolation_data)
+		returns numeric
+		language plpgsql
+		as $func$
+		begin
+			if points.x1 = points.x0 then
+				return points.y0;
+			end if;
+
+			return points.y0 + (x - points.x0) * (points.y1 - points.y0) / (points.x1 - points.x0);
+		end;
+		$func$;
+
+		comment on function get_interpolation_bounds(numeric) is 'Определение точек интерполяции';
+		comment on function interpolate(numeric, interpolation_data) is 'лЛинейная интерполяция';
+
 	exception when others then
 		raise notice 'Ошибка в транзакции 3: %', sqlerrm;
 		raise;
