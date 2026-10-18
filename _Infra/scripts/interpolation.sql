@@ -22,7 +22,7 @@ begin
 
 	begin
 		drop table if exists temp_numeric_corrections;
-		create temporary table temp_numeric_corrections (
+		create table temp_numeric_corrections (
 			temperature numeric not null,
 			correction numeric not null
 		);
