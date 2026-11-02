@@ -2,11 +2,15 @@ do $$
 begin
 
     begin
-        drop table if exists standard_heights cascade;
-        drop table if exists height_temperature_deviations cascade;
+        drop table if exists height_wind_angles;
+        drop table if exists height_wind_average_speeds;
+        drop table if exists height_temperature_deviations;
+        drop table if exists standard_heights;
 
         drop sequence if exists seq_standard_heights;
         drop sequence if exists seq_height_temperature_deviations;
+        drop sequence if exists seq_height_wind_average_speeds;
+        drop sequence if exists seq_height_wind_angles;
 
         create table standard_heights (
             id integer primary key,
@@ -35,6 +39,34 @@ begin
         comment on column height_temperature_deviations.height_id is 'Уникальный ключ стандартной высоты';
         comment on column height_temperature_deviations.delta_tau is 'Отклонение приземной температуры';
         comment on column height_temperature_deviations.deviation_val is 'Итоговая поправка на высоте';
+
+        create table height_wind_average_speeds (
+            id integer primary key,
+            equipment_type_id integer not null references equipment_types(id) on delete cascade,
+            height_id integer references standard_heights(id) on delete cascade,
+            input_value integer not null,
+            avg_wind_speed integer not null,
+            constraint uq_eq_height_input unique (equipment_type_id, height_id, input_value)
+        );
+        create sequence seq_height_wind_average_speeds;
+        alter table height_wind_average_speeds alter column id set default nextval('seq_height_wind_average_speeds');
+
+        comment on table height_wind_average_speeds is 'Скорость среднего ветра по высотам';
+        comment on column height_wind_average_speeds.input_value is 'Скорость v0 для дмк или дальность сноса дг для вр';
+        comment on column height_wind_average_speeds.avg_wind_speed is 'Выходное значение скорости среднего ветра';
+
+        create table height_wind_angles (
+            id integer primary key,
+            equipment_type_id integer not null references equipment_types(id) on delete cascade,
+            height_id integer references standard_heights(id) on delete cascade,
+            angle_increase integer not null,
+            constraint uq_eq_height_angle unique (equipment_type_id, height_id)
+        );
+        create sequence seq_height_wind_angles;
+        alter table height_wind_angles alter column id set default nextval('seq_height_wind_angles');
+
+        comment on table height_wind_angles is 'Приращение дирекционного угла ветра по высотам';
+        comment on column height_wind_angles.angle_increase is 'в делениях угломера';
 
     exception when others then
         raise notice 'Ошибка в транзакции: %', sqlerrm;
