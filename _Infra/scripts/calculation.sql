@@ -6,6 +6,9 @@ begin
 	begin
 		
 		-- Таблица стандартных высот
+		drop table if exists calc_correction_heights cascade;
+		drop sequence if exists calc_correction_height_seq;
+		
 		create sequence calc_correction_height_seq;
 		create table calc_correction_heights
 		(
@@ -20,8 +23,27 @@ begin
 		comment on table calc_correction_heights is 'Таблица стандартных высот';
 		comment on column calc_correction_heights.id is 'Уникальный код';
 		comment on column calc_correction_heights.height is 'Высота';
+
+		-- Справочник заголовков таблиц поправок
+		drop table if exists calc_correction_headers cascade;
+		drop sequence if exists calc_correction_headers_seq;
+
+		create sequence calc_correction_headers_seq;
+		create table calc_correction_headers
+		(
+			id integer not null primary key default nextval('calc_correction_headers_seq'),
+			description text not null,
+			header_values integer[] not null
+		);
+
+		comment on table calc_correction_headers is 'Таблица заголовков';
+		comment on column calc_correction_headers.description is 'Описание';
+		comment on column calc_correction_headers.header_values is 'Значения';
 	
 		-- Справочник типов таблиц корректировок
+		drop table if exists calc_correction_types cascade;
+		drop sequence if exists calc_correction_types_seq;
+		
 		create sequence calc_correction_types_seq;
 		create table calc_correction_types
 		(
@@ -40,6 +62,9 @@ begin
 		comment on column calc_correction_types.header_values is 'Значения в заголовке таблице';
 
 		-- Универсальная таблица корректировок
+		drop table if exists calc_correction cascade;
+		drop sequence if exists calc_correction_seq;
+		
 		create sequence calc_correction_seq;
 		create table calc_correction
 		(
@@ -111,13 +136,19 @@ begin
 		(3, 7, array[3]), -- 800
 		(4, 7, array[3]) -- 1200
 		;
+
+		insert into calc_correction_headers (description, header_values) values
+		('Таблица 2, отклонение температуры', array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50]),
+		('Таблица 3, скорость приземного ветра (ДМК)', array[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+		('Таблица 3, дальность сноса пуль (ВР)', array[40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]);
 		
 	end;
 
 	-- Прочее
 	begin
 		-- Наименование подправлю
-		alter table public.calc_temperature_correction rename to calc_correction_temperature;
+		drop table if exists calc_correction_temperature cascade;
+		alter table public.temp_numeric_corrections rename to calc_correction_temperature;
 		
 				
 		CREATE OR REPLACE FUNCTION public.fn_calc_temperature_interpolation(
@@ -128,7 +159,7 @@ begin
 		    VOLATILE PARALLEL UNSAFE
 		AS $BODY$
 				        declare 
-				                var_interpolation interpolation_type;
+				                var_interpolation interpolation_data;
 				                var_result numeric(8,2) default 0;
 				                var_min_temparure numeric(8,2) default 0;
 				                var_max_temperature numeric(8,2) default 0;
@@ -193,14 +224,16 @@ begin
 				
 		$BODY$;
 		
-		ALTER FUNCTION public.fn_calc_temperature_interpolation(numeric)
-		    OWNER TO admin;
+		-- ALTER FUNCTION public.fn_calc_temperature_interpolation(numeric)
+		--     OWNER TO admin;
 		
 		COMMENT ON FUNCTION public.fn_calc_temperature_interpolation(numeric)
 		    IS 'Функция для расчета интерполяции для метео приближенный';
 	end;
 
 	commit;
+
+
 	
 end $$;
 	
