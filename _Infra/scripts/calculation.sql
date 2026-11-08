@@ -27,14 +27,16 @@ begin
 		-- Справочник заголовков таблиц поправок
 		drop table if exists calc_correction_headers cascade;
 		drop sequence if exists calc_correction_headers_seq;
-
 		create sequence calc_correction_headers_seq;
-		create table calc_correction_headers
-		(
+		create table calc_correction_headers (
 			id integer not null primary key default nextval('calc_correction_headers_seq'),
 			description text not null,
 			header_values integer[] not null
 		);
+		insert into calc_correction_headers (description, header_values) values
+		('Таблица 2, отклонение температуры', array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50]),
+		('Таблица 3, скорость приземного ветра (ДМК)', array[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+		('Таблица 3, дальность сноса пуль (ВР)', array[40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]);
 
 		comment on table calc_correction_headers is 'Таблица заголовков';
 		comment on column calc_correction_headers.description is 'Описание';
@@ -49,17 +51,28 @@ begin
 		(
 		        id integer not null primary key default nextval('public.calc_correction_types_seq'),
 		        parent_id integer,
-		        measurment_equipment_id integer,
+		        eq_type_id integer,
 		        description text not null,
-		        header_values integer[]
+		        header_id integer references calc_correction_headers(id)
 		);
+
+		insert into calc_correction_types (id, description, parent_id, eq_type_id, header_id) values
+		(1, 'Таблица 2, общая', null, null, 1),
+		(2, 'Таблица 3, скорость среднего ветра', null, null, 2),
+		(3, 'Таблица 3, направление среднего ветра', null, null, null),
+		(4, 'Таблица 3, Скорость среднего ветра (ВР)', 2, 2, 3),
+		(5, 'Таблица 3, Направление среднего ветра (ВР)',3, 2, null),
+		(6, 'Таблица 3, Скорость среднего ветра (ДМК)', 2, 1, 2),
+		(7, 'Таблица 3, Направление среднего ветра (ДМК)',3, 1, null),
+		(8, 'Таблица 2, Положительные температуры', 1, null, 1),
+		(9, 'Таблица 2, Отрицательные температуры', 1, null, 1);
 	
 		comment on table calc_correction_types is 'Справочник типов таблиц с собственными заголовками';
 		comment on column calc_correction_types.id is 'Уникальный код';
 		comment on column calc_correction_types.parent_id is 'Уникальный код владельца - тип таблицы';
-		comment on column calc_correction_types.measurment_equipment_id is 'Тип оборудования';
+		comment on column calc_correction_types.eq_type_id is 'Тип оборудования';
 		comment on column calc_correction_types.description is 'Описание к таблице';
-		comment on column calc_correction_types.header_values is 'Значения в заголовке таблице';
+		comment on column calc_correction_types.header_id is 'Значения в заголовке таблице';
 
 		-- Универсальная таблица корректировок
 		drop table if exists calc_correction cascade;
@@ -69,8 +82,8 @@ begin
 		create table calc_correction
 		(
 		        id integer not null primary key default nextval('public.calc_correction_seq'),
-		        height_id integer not null,
-		        type_id integer not null,
+		        height_id integer not null references calc_correction_heights(id),
+        		type_id integer not null references calc_correction_types(id),
 		        row_values integer[]
 		);
 
@@ -80,75 +93,61 @@ begin
 		comment on column calc_correction.type_id is 'Код типа таблиц';
 		comment on column calc_correction.row_values is 'Значения с корректировками';
 
+		insert into calc_correction(height_id, type_id, row_values) values
+		-- Отрицательные температуры (9)
+		(1, 9, array[-1, -2, -3, -4, -5, -6, -7, -8, -8, -9, -20, -29, -39, -49]),
+		(2, 9, array[-1, -2, -3, -4, -5, -6, -6, -7, -8, -9, -19, -29, -39, -48]),
+		(3, 9, array[-1, -2, -3, -4, -5, -6, -6, -7, -7, -8, -18, -28, -37, -46]),
+		(4, 9, array[-1, -2, -3, -4, -4, -5, -5, -6, -7, -8, -17, -26, -35, -44]),
+		(5, 9, array[-1, -2, -3, -3, -4, -4, -5, -6, -7, -7, -17, -25, -34, -42]),
+		(6, 9, array[-1, -2, -3, -3, -4, -4, -5, -6, -6, -7, -16, -24, -32, -40]),
+		(7, 9, array[-1, -2, -2, -3, -4, -4, -5, -5, -6, -7, -15, -23, -31, -38]),
+		(8, 9, array[-1, -2, -2, -3, -4, -4, -4, -5, -5, -6, -15, -22, -30, -37]),
+		(9, 9, array[-1, -2, -2, -3, -4, -4, -4, -4, -5, -6, -14, -20, -27, -34]),
+		-- Положительные температуры (8)
+		(1, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 39, 49]),
+		(2, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 38, 48]),
+		(3, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 37, 46]),
+		(4, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 35, 44]),
+		(5, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 34, 42]),
+		(6, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 32, 40]),
+		(7, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 31, 38]),
+		(8, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 30, 37]),
+		(9, 8, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 27, 34]),
+		-- Скорость ветра ВР (4)
+		(1, 4, array[3, 4, 5, 6, 7, 7, 8, 9, 10, 11, 12, 12]),
+		(2, 4, array[4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+		(3, 4, array[4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16]),
+		(4, 4, array[4, 5, 7, 8, 8, 9, 11, 12, 13, 15, 15, 16]),
+		(5, 4, array[4, 6, 7, 8, 9, 10, 11, 13, 14, 15, 17, 17]),
+		(6, 4, array[4, 6, 7, 8, 9, 10, 11, 13, 14, 16, 17, 18]),
+		(7, 4, array[4, 6, 8, 9, 9, 10, 12, 14, 15, 16, 18, 19]),
+		(8, 4, array[5, 6, 8, 9, 10, 11, 12, 14, 15, 17, 18, 19]),
+		(9, 4, array[5, 6, 8, 9, 10, 11, 12, 14, 16, 18, 19, 20]),
+		-- Направление ветра ВР (5)
+		(1, 5, array[0]), (2, 5, array[1]), (3, 5, array[2]), (4, 5, array[2]),
+		(5, 5, array[3]), (6, 5, array[3]), (7, 5, array[3]), (8, 5, array[4]), (9, 5, array[4]),
+		-- Скорость ветра ДМК (6)
+		(1, 6, array[4,6,8,9,10,12,14,15,16,18,20,21,22]),
+		(2, 6, array[5,7,10,11,12,14,17,18,20,22,23,25,27]),
+		(3, 6, array[5,8,10,11,13,15,18,19,21,23,25,27,28]),
+		(4, 6, array[5,8,11,12,13,16,19,20,23,24,26,28,30]),
+		(5, 6, array[6, 8, 11, 13, 14, 17, 20, 21, 23, 25, 27, 29, 32]),
+		(6, 6, array[6, 9, 11, 13, 14, 17, 20, 21, 24, 26, 28, 30, 32]),
+		(7, 6, array[6, 9, 12, 14, 15, 18, 21, 22, 25, 27, 29, 32, 34]),
+		(8, 6, array[6, 9, 12, 14, 15, 18, 21, 23, 25, 28, 30, 32, 36]),
+		(9, 6, array[6, 10, 12, 14, 16, 19, 22, 24, 26, 29, 32, 34, 36]),
+		-- Направление ветра ДМК (7)
+		(1, 7, array[1]), (2, 7, array[2]), (3, 7, array[3]), (4, 7, array[3]),
+		(5, 7, array[4]), (6, 7, array[4]), (7, 7, array[4]), (8, 7, array[5]), (9, 7, array[5]);
+
 	end;	
-
-	-- Добавляем данные
-	begin
-
-		
-		insert into calc_correction_types(  description, header_values)
-		values( 'Таблица 2', array[0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 10, 20, 30, 40, 50]),  -- 1
-		( 'Таблица 3, скорость среднего ветра', null), -- 2
-		( 'Таблица 3, направление среднего ветра', null);       -- 3
-
-		insert into calc_correction_types( description, parent_id, measurment_equipment_id, header_values)
-		values
-		('Таблица 3, Скорость среднего ветра (ВР)', 2, 2, array[40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]), -- 4
-		('Таблица 3, Направление среднего ветра (ВР)',3, 2, array[40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]), -- 5
-		('Таблица 3, Скорость среднего ветра (ДМК)',2, 1, array[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]), -- 6
-		('Таблица 3, Направление среднего ветра (ДМК)',3, 1, array[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); -- 7
-		
-		insert into calc_correction_types( description, parent_id)
-		values('Таблица 2, Положительные температуры', 1 ), -- 8
-		('Таблица 2, Отрицательные температуры', 1 ) --9
-		;
-
-		
-		insert into calc_correction(height_id, type_id, row_values )
-		-- Таблица 2, отрицптельные значения
-		values(1, 8, array[-1, -2, -3, -4, -5, -6, -7, -8, -8, -9, -20, -29, -39, -49]), -- 200
-		(2, 8, array[-1, -2, -3, -4, -5, -6, -6, -7, -8, -9, -19, -29, -39, -48]), -- 400
-		(3, 8, array[-1, -2, -3, -4, -5, -6, -6, -7, -7, -8, -18, -28, -37, -46]), -- 800
-		(4, 8, array[-1, -2, -3, -4, -4, -5, -5, -6, -7, -8, -17, -26, -35, -44]), -- 1200
-		-- Таблица 2, положитеьные значения
-		(1, 7, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30]), -- 200
-		(2, 7, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30]), -- 400
-		(3, 7, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30]), -- 800
-		(4, 7, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30]), -- 1200
-		-- Таблица 3, Скорость среднего ветра (ВР)
-		(1, 4, array[3, 4, 5, 6, 7, 7, 8, 9, 10, 11, 12, 12]), -- 200
-		(2, 4, array[4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 ,15]), -- 400
-		(3, 4, array[4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15 ,16]), -- 800
-		(4, 4, array[4, 5, 7, 8, 8, 9, 11, 12, 13, 15 ,15, 16]), -- 1200
-		-- Таблица 3, Направление среднего ветра (ВР)
-		(1, 5, array[0]), -- 200
-		(2, 5, array[1]), -- 400
-		(3, 5, array[2]), -- 800
-		(4, 5, array[2]), -- 1200
-		-- Таблица 3,Скорость среднего ветра (ДМК)
-		(1, 6, array[4,6,8,9,10,12,14,15,16,18,20,21,22]), -- 200
-		(2, 6, array[5,7,10,11,12,14,17,18,20,22,23,25,27]), -- 400
-		(3, 6, array[5,8,10,11,13,15,18,19,21,23,25,27,28]), -- 800
-		(4, 6, array[5,8,11,12,13,16,19,20,23,24,26,28,30]), -- 1200
-		-- 'Таблица 3, Направление среднего ветра (ДМК)
-		(1, 7, array[1]), -- 200
-		(2, 7, array[2]), -- 400
-		(3, 7, array[3]), -- 800
-		(4, 7, array[3]) -- 1200
-		;
-
-		insert into calc_correction_headers (description, header_values) values
-		('Таблица 2, отклонение температуры', array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50]),
-		('Таблица 3, скорость приземного ветра (ДМК)', array[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
-		('Таблица 3, дальность сноса пуль (ВР)', array[40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]);
-		
-	end;
 
 	-- Прочее
 	begin
 		-- Наименование подправлю
-		drop table if exists calc_correction_temperature cascade;
-		alter table public.temp_numeric_corrections rename to calc_correction_temperature;
+		-- drop table if exists calc_correction_temperature cascade;
+		-- alter table public.temp_numeric_corrections rename to calc_correction_temperature;
 		
 				
 		CREATE OR REPLACE FUNCTION public.fn_calc_temperature_interpolation(
@@ -232,8 +231,6 @@ begin
 	end;
 
 	commit;
-
-
 	
 end $$;
 	
