@@ -231,6 +231,259 @@ begin
 	end;
 
 	commit;
+
+	begin
+
+		-- Финальная функция расчета
+		create or replace function calc_meteo_average(p_parameters parameter_list, p_eq_type_id integer)
+		returns table (
+		    height integer,
+		    temperature_deviation text,
+		    wind_direction text,
+		    wind_speed integer
+		)
+		language plpgsql
+		as $func$
+		declare
+		    v_errors text;
+		    v_deviation integer;
+		    v_dmk_id integer;
+		    v_argument numeric;
+		    v_speed_type_id integer;
+		    v_direction_type_id integer;
+		    v_threshold integer;
+		    v_height record;
+		    v_total integer;
+		    v_speed numeric;
+		    v_increment integer;
+		    
+		    v_neg_temp_base numeric;
+		    v_wind_circle numeric;
+			
+		begin
+		    -- Читаем константы из таблицы constants
+		    select value into v_neg_temp_base from constants where code = 'negative_temperature_base';
+		    if v_neg_temp_base is null then v_neg_temp_base := 50; end if;
+		
+		    select value into v_wind_circle from constants where code = 'wind_circle_grad';
+		    if v_wind_circle is null then v_wind_circle := 60; end if;
+		
+		    -- Проверка параметров
+		    v_errors := check_parameters(cast(row(
+		        p_eq_type_id, p_parameters.height, p_parameters.temperature, p_parameters.pressure,
+		        p_parameters.wind_direction, p_parameters.wind_speed, p_parameters.drift_range
+		    ) as parameter_list));
+		
+		    if v_errors <> '' then
+		        raise exception 'Некорректные входные параметры: %', v_errors;
+		    end if;
+		
+		    -- Расчет отклонения приземной виртуальной температуры
+		    v_deviation := cast(round(
+		        p_parameters.temperature
+		        + interpolate(p_parameters.temperature, get_interpolation_bounds(p_parameters.temperature))
+		        - get_meteo_constant('table_temperature')
+		    ) as integer);
+		
+		    -- Определение аргумента для Таблицы 3
+		    select id into v_dmk_id from equipment_types where name ilike '%ДМК%';
+		    if v_dmk_id is null then v_dmk_id := 1; end if;
+		    
+		    v_argument := case when p_eq_type_id = v_dmk_id then p_parameters.wind_speed else p_parameters.drift_range end;
+		
+		    -- Получаем типы таблиц для скорости и направления ветра
+		    select t.id into v_speed_type_id
+		    from calc_correction_types t
+		    inner join calc_correction_types p on p.id = t.parent_id
+		    where p.code = 'wind_speed' and t.eq_type_id = p_eq_type_id;
+		
+		    select t.id into v_direction_type_id
+		    from calc_correction_types t
+		    inner join calc_correction_types p on p.id = t.parent_id
+		    where p.code = 'wind_direction' and t.eq_type_id = p_eq_type_id;
+		
+		    -- Порог обнуления ветра
+		    select h.header_values[1] into v_threshold
+		    from calc_correction_types t
+		    inner join calc_correction_headers h on h.id = t.header_id
+		    where t.id = v_speed_type_id;
+		
+		    for v_height in
+		        select h.id, h.height
+		        from calc_correction_heights h
+		        order by h.height
+		    loop
+		        height := v_height.height;
+		
+		        -- Расчет отклонения температуры 
+		        v_total := calc_temperature_average_deviation(v_height.id, v_deviation);
+		        if v_total < 0 then
+		            temperature_deviation := lpad(cast(v_neg_temp_base + abs(v_total) as text), 2, '0');
+		        else
+		            temperature_deviation := lpad(cast(v_total as text), 2, '0');
+		        end if;
+		
+		        -- Проверка порога ветра и расчет скорости и направления
+		        if v_argument < v_threshold then
+		            wind_direction := '00';
+		            wind_speed := 0;
+		        else
+		            v_speed := get_correction_value(v_height.id, v_speed_type_id, v_argument);
+		
+		            select c.row_values[1] into v_increment
+		            from calc_correction c
+		            where c.height_id = v_height.id and c.type_id = v_direction_type_id;
+		
+		            wind_speed := cast(round(v_speed) as integer);
+		            wind_direction := lpad(cast(mod(cast(p_parameters.wind_direction as integer) + coalesce(v_increment, 0), v_wind_circle::integer) as text), 2, '0');
+		        end if;
+		
+		        return next;
+		    end loop;
+			
+		end;
+		$func$;
+
+	end;
+
+	begin
+
+		-- Вспомогательные функции форматирования
+		create or replace function public.fn_format_h(par_height integer) 
+		returns text language plpgsql as $body$
+		begin
+		    return lpad((par_height / 100)::text, 2, '0');
+		end;
+		$body$;
+		
+		create or replace function public.fn_format_tt(par_t integer) 
+		returns text language plpgsql as $body$
+		begin
+		    if par_t < 0 then 
+		        return lpad((50 + abs(par_t))::text, 2, '0'); 
+		    end if;
+		    return lpad(par_t::text, 2, '0');
+		end;
+		$body$;
+		
+		create or replace function public.fn_format_hh(par_dir integer, par_circle integer) 
+		returns text language plpgsql as $body$
+		begin
+		    return lpad((par_dir % par_circle)::text, 2, '0');
+		end;
+		$body$;
+		
+		create or replace function public.fn_format_cc(par_speed integer) 
+		returns text language plpgsql as $body$
+		begin
+		    return lpad(par_speed::text, 2, '0');
+		end;
+		$body$;
+
+	end;
+
+	begin
+
+		create or replace procedure public.pr_calc_meteo_average(par_params parameter_list, par_equipment_id integer) 
+		language plpgsql as $body$
+		declare
+		    var_dt integer;
+		    var_tens integer;
+		    var_units integer;
+		    var_wind integer;
+		    var_h record;
+		    var_t integer;
+		    var_dir integer;
+		    var_speed integer;
+		    var_dcorr integer;
+		    var_trow integer[];
+		    var_srow integer[];
+		    var_th integer[];
+		    var_sh integer[];
+		    var_min_dmk_wind numeric;
+		    var_min_bp_drift numeric;
+		    var_wind_circle numeric;
+		    var_table_temp numeric;
+		begin
+
+		    select value into var_min_dmk_wind from constants where code = 'min_dmk_wind_speed';
+		    if var_min_dmk_wind is null then var_min_dmk_wind := 3; end if;
+		
+		    select value into var_min_bp_drift from constants where code = 'min_bp_drift_range';
+		    if var_min_bp_drift is null then var_min_bp_drift := 40; end if;
+		
+		    select value into var_wind_circle from constants where code = 'wind_circle_grad';
+		    if var_wind_circle is null then var_wind_circle := 60; end if;
+		
+		    select value into var_table_temp from constants where code = 'table_temperature';
+		    if var_table_temp is null then var_table_temp := 15.9; end if;
+
+			var_dt := round(public.fn_calc_temperature_interpolation(par_params.temperature));
+		    
+		    var_tens := (abs(var_dt) / 10) * 10;
+		    var_units := abs(var_dt) - var_tens;
+		
+		    if par_equipment_id = 1 then 
+		        var_wind := par_params.wind_speed;
+		    else
+		        var_wind := round(par_params.drift_range / 10) * 10;
+		    end if;
+		
+		    if (par_equipment_id = 1 and coalesce(par_params.wind_speed, 0) < var_min_dmk_wind) or 
+		       (par_equipment_id = 2 and coalesce(par_params.drift_range, 0) < var_min_bp_drift) then
+		        var_wind := null;
+		    end if;
+		
+		    -- Получаем заголовок температуры
+
+			select h.header_values into var_th
+			from calc_correction_types t
+			left join calc_correction_headers h on h.id = t.header_id
+			where t.id = case when var_dt < 0 then 9 else 8 end;
+	
+			-- Получаем заголовок скорости ветра
+			if var_wind is not null then
+				select h.header_values into var_sh
+				from calc_correction_types t
+				left join calc_correction_headers h on h.id = t.header_id
+				where t.parent_id = 2 and t.eq_type_id = par_equipment_id;
+			end if;
+		
+		    for var_h in select id, height from calc_correction_heights order by height loop
+		        select c.row_values into var_trow
+		        from calc_correction c
+		        where c.height_id = var_h.id and c.type_id = case when var_dt < 0 then 9 else 8 end;
+		
+		        var_t := coalesce(var_trow[array_position(var_th, var_tens)], 0) + coalesce(var_trow[array_position(var_th, var_units)], 0);
+		
+		        if var_wind is null then 
+		            var_dir := 0; 
+		            var_speed := 0;
+		        else
+		            select c.row_values into var_srow
+		            from calc_correction c
+		            join calc_correction_types t on t.id = c.type_id
+		            where c.height_id = var_h.id and t.parent_id = 2 and t.eq_type_id = par_equipment_id;
+		
+		            var_speed := coalesce(var_srow[array_position(var_sh, var_wind)], 0);
+		
+		            select c.row_values[1] into var_dcorr
+		            from calc_correction c
+		            join calc_correction_types t on t.id = c.type_id
+		            where c.height_id = var_h.id and t.parent_id = 3 and t.eq_type_id = par_equipment_id;
+		
+		            var_dir := (par_params.wind_direction::integer + coalesce(var_dcorr, 0))::integer % var_wind_circle::integer;
+		        end if;
+		
+		        raise notice 'Высота: % | TT: % | HH: % | CC: %', 
+		            public.fn_format_h(var_h.height), 
+		            public.fn_format_tt(var_t), 
+		            public.fn_format_hh(var_dir, var_wind_circle::integer), 
+		            public.fn_format_cc(var_speed);
+		    end loop;
+		end;
+		$body$;
+	end;
 	
 end $$;
 	
