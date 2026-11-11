@@ -2,3 +2,6 @@
 .idea/
 .env
 pgadmin/
+_Infra/backup
+_Infra/postgres-data
+_Infra/mssql-data
