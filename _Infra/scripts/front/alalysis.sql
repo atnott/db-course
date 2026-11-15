@@ -152,3 +152,76 @@ left join product p on p.productid = j.id
 where j.transtype = 101 and j.id <> '';
 -- вывод: все 119 367 проданных позиций находят товар в product по коду (not_found 0),
 -- связь journal.id = product.productid подтверждена полностью, внешнего ключа нет
+
+-- 3. взаимоотношения с поставщиками
+
+-- 3.1 поставщики по группам, проверка FK vendors.clientgroup -> vendorgroup
+select g.vendorgroupid, g.description as vendor_group,
+       count(*) as vendors, sum(v.IsUse) as active
+from vendors v
+join vendorgroup g on g.vendorgroupid = v.clientgroup
+group by g.vendorgroupid, g.description;
+-- вывод: 63 поставщика в двух группах: 31 "Поставщики" (59, активных 17)
+-- и 32 "Без названия" (4, активных 3). внешний ключ работает.
+
+-- 3.2 все ли VendorID в строках закупок указывают на существующего поставщика (без FK)
+select count(*) as purchase_rows,
+       sum(case when v.id is null then 1 else 0 end) as rows_without_vendor,
+       count(distinct o.VendorID) as vendors_used
+from bm_StorageOperations o
+left join vendors v on v.id = o.VendorID
+join bm_JournalBarnetDocs d on d.ID = o.DocumentID
+where o.OperationID = 1 and d.DocumentTypeID = 4;
+-- вывод: все 11 358 строк закупок имеют поставщика из vendors (потерь 0),
+-- задействован 21 из 63. связь bm_StorageOperations.VendorID = vendors.id подтверждена.
+
+-- 3.3 закупки по месяцам в разрезе поставщиков: сколько поставщиков, документов, сумма
+select format(o.DateAdd, 'yyyy-MM') as month,
+       count(distinct o.VendorID) as vendors,
+       count(distinct o.DocumentID) as documents,
+       sum(o.Amount) as amount
+from bm_StorageOperations o
+join bm_JournalBarnetDocs d on d.ID = o.DocumentID
+where o.OperationID = 1 and d.DocumentTypeID = 4
+group by format(o.DateAdd, 'yyyy-MM')
+order by month;
+-- вывод: 38 месяцев (2020-11 - 2023-12), обычно 11-16 поставщиков и 45-145 документов
+-- на 280-790 тыс в месяц, выброс март 2021 (128 док, 3 022 371,81).
+-- месяцев на один меньше, чем в 1.4: октябрь 2020 тут пропал, потому что месяц берется
+-- по дате складской строки (DateAdd), а у тех документов она ноябрьская. последний месяц неполный.
+
+-- 3.4 крупнейшие поставщики за весь период: насколько сконцентрированы закупки
+select top 10 v.clientid as vendor,
+       count(distinct o.DocumentID) as documents, sum(o.Amount) as amount,
+       min(o.DateAdd) as first_date, max(o.DateAdd) as last_date
+from bm_StorageOperations o
+join vendors v on v.id = o.VendorID
+join bm_JournalBarnetDocs d on d.ID = o.DocumentID
+where o.OperationID = 1 and d.DocumentTypeID = 4
+group by v.clientid
+order by amount desc;
+-- вывод: концентрация высокая: "Пятая Армия" 9 836 650,03 (50% всех закупок),
+-- топ-10 вместе 18 582 408,56 (~94,5%). число документов с суммой не связано:
+-- у "Покупка в розницу" больше всего доков (537), но сумма всего 515 тыс.
+-- группировка по названию (clientid) склеивает дубли, см. 3.6.
+
+-- 3.5 заполненность альтернативных каналов связи с поставщиком:
+-- договоры, прайсы, карточка товара, ContractID в поступлениях
+select
+    (select count(*) from bm_Contracts) as contracts,
+    (select count(*) from pricelist where vendorid <> 0) as pricelist_rows_with_vendor,
+    (select count(*) from product where vendorid <> 0) as products_with_vendor,
+    (select count(*) from bm_StorageOperations where OperationID = 1 and ContractID <> 0) as income_rows_with_contract;
+-- вывод: bm_Contracts пустая (0), pricelist.vendorid не заполнен (0),
+-- поставщик в карточке товара только у одного (1), ContractID в поступлениях не используется (0).
+-- единственный рабочий канал связи с поставщиком - VendorID складских строк.
+
+-- 3.6 дубли поставщиков: одно название под разными записями
+select clientid, count(*) as records,
+       min(clientgroup) as min_group, max(clientgroup) as max_group
+from vendors
+group by clientid
+having count(*) > 1
+order by records desc;
+-- вывод: дубли есть: "Габур" (2 записи, группы 31 и 32), "Столярская" (2 записи в группе 31).
+-- при группировке по названию (как в 3.4) они складываются, по id остались бы разными поставщиками.
