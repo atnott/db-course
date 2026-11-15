@@ -288,3 +288,72 @@ order by rights desc;
 -- вывод: права у 48 сотрудников, у большинства по 16, у администратора Barnet (897) 24,
 -- у 1022 - 22, у нескольких 17 (в т.ч. 906 "Доставка"). обе связи (FK на объекты и без FK
 -- на personnel) работают
+
+-- 5. остатки
+
+-- 5.1 заполненность таблиц с готовыми остатками: можно ли на них опираться
+select 'stock' as table_name, count(*) as row_count, cast(null as datetime) as last_date from stock
+union all select 'onhand', count(*), null from onhand
+union all select 'closingcount', count(*), null from closingcount
+union all select 'storagesonhand', count(*), null from storagesonhand
+union all select 'stockperiod', count(*), max(datefinish) from stockperiod;
+-- вывод: stock, onhand, closingcount, storagesonhand пустые (0 строк);
+-- stockperiod - 56 строк, последняя от 18.02.2015. готовые остатки непригодны, считаем по движениям склада.
+
+-- 5.2 виды складских операций и в какой колонке лежит реальное количество
+select t.ID, t.Description, t.Factor, count(*) as rows_count,
+       sum(o.Quantity) as sum_quantity, sum(o.[Count]) as sum_count, sum(o.Amount) as amount
+from bm_StorageOperations o
+join bm_StorageOperationsType t on t.ID = o.OperationID
+group by t.ID, t.Description, t.Factor
+order by t.ID;
+-- вывод: в данных только два вида операций: поступление (22 016 строк, Count +130 625,83, сумма 20 018 690,28)
+-- и списание (1 009 182 строки, Count -728 963,85, сумма -86 096 814,10).
+-- Quantity везде 0, реальное количество в Count, уже со знаком.
+
+-- 5.3 остаток по движениям: сумма Count по товару, топ-20 по приходу
+select top 20 p.description as product,
+       sum(case when o.OperationID = 1 then o.[Count] else 0 end) as income,
+       sum(case when o.OperationID = 2 then o.[Count] else 0 end) as writeoff,
+       sum(o.[Count]) as balance
+from bm_StorageOperations o
+join product p on p.id = o.ProductID
+group by p.description
+order by income desc;
+-- вывод: у большинства товаров списано больше, чем поступило, остаток отрицательный:
+-- мука в/с приход 15 044,61 / списание -78 027,15 / остаток -62 982,54;
+-- сыр голландский -55 359,44; мука итальянская -55 251,30; сок 1,0 -52 483,97.
+-- у штучных товаров остаток положительный (булочка для гамбургера +876, яйцо перепелиное +406,
+-- лепешка мексиканская +1398, лосось +503,73). минус по основным продуктам значит,
+-- что приходы внесены не полностью и без инвентаризации реальный остаток не восстановить.
+
+-- 5.4 заполнена ли колонка Rest (остаток после операции)
+select count(*) as rows_count,
+       sum(case when Rest <> 0 then 1 else 0 end) as rows_with_rest
+from bm_StorageOperations;
+-- вывод: Rest = 0 во всех 1 031 198 строках (rows_with_rest = 0), готового остатка в движениях нет.
+
+-- 5.5 понедельная динамика движений склада, последние 15 недель
+select top 15 w.week_start,
+       sum(case when w.OperationID = 1 then 1 else 0 end) as incomes,
+       sum(case when w.OperationID = 2 then 1 else 0 end) as writeoffs
+from (
+    select cast(dateadd(day, datediff(day, 0, DateAdd) / 7 * 7, 0) as date) as week_start, OperationID
+    from bm_StorageOperations
+) w
+group by w.week_start
+order by w.week_start desc;
+-- вывод: последние 15 недель (28.08.2023 - 04.12.2023), приходов 34-196, списаний 4161-8194 в неделю.
+-- всплеск списаний в неделе с 16.10 (8194). последняя неделя (с 04.12.2023) неполная: 6 приходов / 1700 списаний.
+
+-- 5.6 причины списаний: связь ReasonID со справочником bm_ReasonDebit (без FK)
+select top 10 o.ReasonID, r.Description as reason, count(*) as rows_count, sum(o.Amount) as amount
+from bm_StorageOperations o
+left join bm_ReasonDebit r on r.ID = o.ReasonID
+where o.OperationID = 2
+group by o.ReasonID, r.Description
+order by rows_count desc;
+-- вывод: у 978 381 из 1 009 182 списаний (97%) ReasonID = 0, причины нет (сумма -83 366 403,22 из -86 096 814,10) -
+-- это автосписание по составу проданных блюд. среди остальных часть ID найдена в справочнике
+-- (122 Лукьянов В.В., 138 КУРЬЕР, 164 Попова Галина, 198 Бяченко Тоня, 16 Запорожская Е.В. - похоже ФИО сотрудников),
+-- часть нет (25, 179, 24, 18), причем у 25 и 24 сумма 0. связь частичная, причинам полностью доверять нельзя.
