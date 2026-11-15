@@ -225,3 +225,66 @@ having count(*) > 1
 order by records desc;
 -- вывод: дубли есть: "Габур" (2 записи, группы 31 и 32), "Столярская" (2 записи в группе 31).
 -- при группировке по названию (как в 3.4) они складываются, по id остались бы разными поставщиками.
+
+-- 4. работа персонала
+
+-- 4.1 сотрудники по ролям и признаку удаления: можно ли доверять этим полям
+select s.description as role, p.deleteflag, count(*) as employees
+from personnel p
+left join securityaccess s on s.securityaccessid = p.securityaccess
+group by s.description, p.deleteflag
+order by employees desc;
+-- вывод: все 109 сотрудников с deleteflag = 1, активных по нему не отличить.
+-- у 102 роль не нашлась в securityaccess (NULL), у 5 "Special Access", у 2 "Manager/Adm".
+
+-- 4.2 все ли loginid в продажах указывают на сотрудника (без FK)
+select count(*) as sales_rows,
+       sum(case when p.personid is null then 1 else 0 end) as rows_without_employee
+from journal j
+left join personnel p on p.personid = try_cast(j.loginid as int)
+where j.transtype = 101;
+-- вывод: все 119 367 проданных позиций имеют loginid из personnel (потерь 0), связь подтверждена.
+
+-- 4.3 выручка по сотрудникам: кто фактически оформляет продажи
+select j.loginid as employee_id,
+       count(distinct j.receiptn) as receipts, sum(j.amount) as amount
+from journal j
+where j.transtype = 101
+group by j.loginid
+order by amount desc;
+-- вывод: вся выручка на одном сотруднике 906 ("Доставка"): 43 043 чека на 42 306 984,17.
+-- продажи идут под общей учетной записью, сравнивать кассиров по выручке нельзя.
+
+-- 4.4 смены по событиям начала (386) и окончания (387) работы: кто и сколько работал
+select j.loginid as employee_id,
+       sum(case when j.transtype = 386 then 1 else 0 end) as work_started,
+       sum(case when j.transtype = 387 then 1 else 0 end) as work_finished,
+       min(j.dater) as first_date, max(j.dater) as last_date
+from journal j
+where j.transtype in (386, 387)
+group by j.loginid
+order by work_started desc;
+-- вывод: смены ведут 35 сотрудников, от 1 до 707 смен (больше всех у 1029: 707 начал / 708 окончаний).
+-- начала и окончания почти совпадают, у части сотрудников окончаний даже больше (1044: 338/345,
+-- 1060: 175/181). по первой/последней дате видна текучесть: 1029/1020/1047 работают с 12.2020 по 12.2023,
+-- а 1044 закончил в 06.2022, 1046 в 10.2021.
+
+-- 4.5 все ли документы привязаны к сотруднику через PersonID (без FK)
+select count(*) as documents,
+       sum(case when p.personid is null then 1 else 0 end) as documents_without_employee
+from bm_JournalBarnetDocs d
+left join personnel p on p.personid = d.PersonID;
+-- вывод: из 55 149 документов у 55 148 PersonID найден в personnel, один без сотрудника.
+-- связь подтверждена почти полностью.
+
+-- 4.6 права доступа: сколько прав у сотрудника, FK на bm_SecurityObjects и связь с personnel
+select p.personid, p.firstname, count(*) as rights
+from bm_PersonnelSecurity ps
+join bm_SecurityObjects o on o.ID = ps.ObjectID
+join personnel p on p.personid = ps.PersonID
+where ps.IsUse = 1
+group by p.personid, p.firstname
+order by rights desc;
+-- вывод: права у 48 сотрудников, у большинства по 16, у администратора Barnet (897) 24,
+-- у 1022 - 22, у нескольких 17 (в т.ч. 906 "Доставка"). обе связи (FK на объекты и без FK
+-- на personnel) работают
